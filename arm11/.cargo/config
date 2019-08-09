@@ -1,0 +1,3 @@
+[build]
+target = "sd3_arm11.json"
+

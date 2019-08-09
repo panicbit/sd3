@@ -1,0 +1,7 @@
+[build]
+target = "sd3_arm9.json"
+
+[target.sd3_arm9]
+#rustflags = [
+#  "-C", "link-arg=-Tlink.ld"
+#]

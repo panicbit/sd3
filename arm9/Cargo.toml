@@ -1,0 +1,10 @@
+[package]
+name = "sd3_arm9"
+version = "0.1.0"
+authors = ["panicbit <panicbit.dev@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+common = { path = "../common", features = ["arm9"] }
+volatile = "0.2.6"
+bitflags = "1.1.0"
