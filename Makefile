@@ -14,6 +14,9 @@ arm9:
 parse: firm
 	firmtool parse sd3.firm
 
+vis:
+	ksv sd3.firm formats/firm.ksy
+
 clean:
 	cd arm9; cargo clean
 	cd arm11; cargo clean
