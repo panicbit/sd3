@@ -1,0 +1,5 @@
+{
+    "rust.target": "sd3_arm11.json",
+    "rust.sysroot": "target/sysroot",
+    "rust.all_targets": false,
+}
