@@ -34,6 +34,8 @@ impl Lcd {
         &mut *(addr as *mut Lcd)
     }
 
+    /// Sets the color to fill the screen with
+    /// instead of showing the buffer's contents.
     pub fn set_fill_color(&mut self, color: impl Into<Option<FillColor>>) {
         let color = match color.into() {
             None => 0,
