@@ -1,0 +1,14 @@
+[package]
+name = "firmtool"
+version = "0.1.0"
+authors = ["panicbit <panicbit.dev@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+goblin = "0.0.24"
+num-traits = "0.2.8"
+num-derive = "0.2.5"
+byteorder = "1.3.2"
+sha2 = "0.8.0"

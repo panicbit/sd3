@@ -2,25 +2,32 @@ arm9_path = arm9/target/sd3_arm9/debug/sd3_arm9
 arm11_path = arm11/target/sd3_arm11/debug/sd3_arm11
 device_label = 3DS
 firm_path = sd3.firm
+firmtool = rust
 
-firm: arm9 arm11
+firm: $(firmtool)
+
+rust: arm9 arm11
+	cargo run --manifest-path firmtool/Cargo.toml $(firm_path) $(arm9_path) $(arm11_path)
+
+py: arm9 arm11
 	firmtool build $(firm_path) -D $(arm9_path) $(arm11_path) -C NDMA XDMA
-
-arm11:
-	cd arm11; cargo xbuild
 
 arm9:
 	cd arm9; cargo xbuild
 
+arm11:
+	cd arm11; cargo xbuild
+
 parse: firm
 	firmtool parse $(firm_path)
 
-vis:
+vis: firm
 	ksv $(firm_path) formats/firm.ksy
 
 clean:
 	cd arm9; cargo clean
 	cd arm11; cargo clean
+	cd firmtool; cargo clean
 
 deploy: firm
 	udisksctl mount -b "/dev/disk/by-label/$(device_label)"
@@ -28,4 +35,4 @@ deploy: firm
 	umount "/var/run/media/$(USER)/$(device_label)"
 	sync
 
-.PHONY: firm arm9 arm11
+.PHONY: firm rust py arm9 arm11 parse vis clean deploy
