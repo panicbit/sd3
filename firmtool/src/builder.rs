@@ -97,7 +97,7 @@ pub struct Section {
 
 impl Section {
     pub fn new(addr: u32, copy_method: CopyMethod, mut data: Vec<u8>) -> Result<Section> {
-        // Align size to 512
+        // Align size to eMMC sectors (512 bytes)
         while data.len() % 512 != 0 {
             data.push(0xFF);
         }        
