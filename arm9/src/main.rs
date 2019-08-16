@@ -41,7 +41,7 @@ pub extern "C" fn _start() -> ! {
 
         busy_sleep(100);
         init_screens();
-        busy_sleep(1_000);
+        busy_sleep(5_000);
 
         // shutdown
         i2c::write_reg(i2c::DEVICE_MCU, 0x20, 1);
