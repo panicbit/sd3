@@ -6,6 +6,7 @@ use volatile::Volatile;
 use lcd::*;
 use gpu::FramebufferConfig;
 use core::ptr::{read_volatile, write_volatile};
+use common::input::PadState;
 
 mod lcd;
 mod gpu;
@@ -118,12 +119,26 @@ pub unsafe fn init_screens(top_fb: &mut [[u8; 3]]) {
     setup_framebuffers(top_fb.as_ptr() as _);
 
     for (pixel, ferris_pixel) in top_fb.iter_mut().zip(FERRIS.chunks(3)) {
-        core::ptr::write_volatile(&mut pixel[0], ferris_pixel[2]);
-        core::ptr::write_volatile(&mut pixel[1], ferris_pixel[1]);
-        core::ptr::write_volatile(&mut pixel[2], ferris_pixel[0]);
+        write_volatile(&mut pixel[0], ferris_pixel[2]);
+        write_volatile(&mut pixel[1], ferris_pixel[1]);
+        write_volatile(&mut pixel[2], ferris_pixel[0]);
     }
 
-    loop {}
+    loop {
+        let pad = PadState::read();
+        write_volatile(&mut top_fb[0], [0, 0, pad.contains(PadState::A) as u8 * 0xFF]);
+        write_volatile(&mut top_fb[1], [0, pad.contains(PadState::B) as u8 * 0xFF, 0]);
+        write_volatile(&mut top_fb[2], [pad.contains(PadState::SELECT) as u8 * 0xFF, 0, 0]);
+        write_volatile(&mut top_fb[3], [0, 0, pad.contains(PadState::START) as u8 * 0xFF]);
+        write_volatile(&mut top_fb[4], [0, pad.contains(PadState::RIGHT) as u8 * 0xFF, 0]);
+        write_volatile(&mut top_fb[5], [pad.contains(PadState::LEFT) as u8 * 0xFF, 0, 0]);
+        write_volatile(&mut top_fb[6], [0, 0, pad.contains(PadState::UP) as u8 * 0xFF]);
+        write_volatile(&mut top_fb[7], [0, pad.contains(PadState::DOWN) as u8 * 0xFF, 0]);
+        write_volatile(&mut top_fb[8], [pad.contains(PadState::R) as u8 * 0xFF, 0, 0]);
+        write_volatile(&mut top_fb[9], [0, 0, pad.contains(PadState::L) as u8 * 0xFF]);
+        write_volatile(&mut top_fb[10], [0, pad.contains(PadState::X) as u8 * 0xFF, 0]);
+        write_volatile(&mut top_fb[11], [pad.contains(PadState::Y) as u8 * 0xFF, 0, 0]);
+    }
 }
 
 unsafe fn setup_framebuffers(addr: u32) {

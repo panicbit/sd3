@@ -8,6 +8,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "common"
 version = "0.1.0"
+dependencies = [
+ "bitflags 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "sd3_arm9"

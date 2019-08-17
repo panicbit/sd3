@@ -1,8 +1,11 @@
 #![no_std]
 
+#[macro_use] extern crate bitflags;
+
 use core::ptr;
 
 mod mem;
+pub mod input;
 
 #[cfg(all(feature="arm9", feature="arm11"))]
 compile_error!("arm9 and arm11 features are mutually exclusive");

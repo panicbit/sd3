@@ -7,3 +7,6 @@ edition = "2018"
 [features]
 arm9 = []
 arm11 = []
+
+[dependencies]
+bitflags = "1.1.0"
