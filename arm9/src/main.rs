@@ -6,9 +6,6 @@
 mod i2c;
 mod timer;
 
-use core::ptr::{write_volatile, read_volatile};
-use volatile::Volatile;
-
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
     unsafe {

@@ -13,18 +13,18 @@ unsafe fn timers() -> &'static mut [Timer; 4] {
 }
 
 fn start() -> u64 {
-    static mut timer_needs_init: bool = true;
+    static mut TIMER_NEEDS_INIT: bool = true;
 
     let timers = unsafe { timers() };
 
-    if unsafe { timer_needs_init } {
+    if unsafe { TIMER_NEEDS_INIT } {
         for timer in &mut *timers {
             timer.control.write(0);
             timer.value.write(0);
         }
 
         unsafe {
-            timer_needs_init = false;
+            TIMER_NEEDS_INIT = false;
         }
     }
 
