@@ -55,15 +55,6 @@ unsafe fn init_screens() {
     i2c::write_reg(i2c::DEVICE_MCU, 0x22, 0x2A);
 }
 
-fn busy_sleep(iterations: usize) {
-    let n = 42;
-    for _ in 0 .. 15 * iterations {
-        unsafe {
-            read_volatile(&n);
-        }
-    }
-}
-
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {}
