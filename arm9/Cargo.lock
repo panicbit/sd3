@@ -8,6 +8,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "common"
 version = "0.1.0"
+dependencies = [
+ "volatile 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "sd3_arm9"
