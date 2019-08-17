@@ -118,26 +118,69 @@ pub unsafe fn init_screens(top_fb: &mut [[u8; 3]]) {
 
     setup_framebuffers(top_fb.as_ptr() as _);
 
-    for (pixel, ferris_pixel) in top_fb.iter_mut().zip(FERRIS.chunks(3)) {
-        write_volatile(&mut pixel[0], ferris_pixel[2]);
-        write_volatile(&mut pixel[1], ferris_pixel[1]);
-        write_volatile(&mut pixel[2], ferris_pixel[0]);
-    }
+    let mut text_x = 0;
+    let mut text_y = 0;
+    let mut do_render = true;
+    let mut render_bg = false;
 
     loop {
         let pad = PadState::read();
-        write_volatile(&mut top_fb[0], [0, 0, pad.a() as u8 * 0xFF]);
-        write_volatile(&mut top_fb[1], [0, pad.b() as u8 * 0xFF, 0]);
-        write_volatile(&mut top_fb[2], [pad.select() as u8 * 0xFF, 0, 0]);
-        write_volatile(&mut top_fb[3], [0, 0, pad.start() as u8 * 0xFF]);
-        write_volatile(&mut top_fb[4], [0, pad.right() as u8 * 0xFF, 0]);
-        write_volatile(&mut top_fb[5], [pad.left() as u8 * 0xFF, 0, 0]);
-        write_volatile(&mut top_fb[6], [0, 0, pad.up() as u8 * 0xFF]);
-        write_volatile(&mut top_fb[7], [0, pad.down() as u8 * 0xFF, 0]);
-        write_volatile(&mut top_fb[8], [pad.r() as u8 * 0xFF, 0, 0]);
-        write_volatile(&mut top_fb[9], [0, 0, pad.l() as u8 * 0xFF]);
-        write_volatile(&mut top_fb[10], [0, pad.x() as u8 * 0xFF, 0]);
-        write_volatile(&mut top_fb[11], [pad.y() as u8 * 0xFF, 0, 0]);
+
+        do_render &= !pad.select();
+        do_render |= pad.start();
+
+        if do_render == false {
+            continue;
+        }
+
+        render_bg &= !pad.l();
+        render_bg |= pad.r();
+
+        if render_bg {
+            for (pixel, ferris_pixel) in top_fb.iter_mut().zip(FERRIS.chunks(3)) {
+                write_volatile(&mut pixel[0], ferris_pixel[2]);
+                write_volatile(&mut pixel[1], ferris_pixel[1]);
+                write_volatile(&mut pixel[2], ferris_pixel[0]);
+            }
+        }
+
+        blit(top_fb, 0, 0, [0, 0, pad.a() as u8 * 0xFF]);
+        blit(top_fb, 1, 0, [0, pad.b() as u8 * 0xFF, 0]);
+        blit(top_fb, 2, 0, [pad.select() as u8 * 0xFF, 0, 0]);
+        blit(top_fb, 3, 0, [0, 0, pad.start() as u8 * 0xFF]);
+        blit(top_fb, 4, 0, [0, pad.right() as u8 * 0xFF, 0]);
+        blit(top_fb, 5, 0, [pad.left() as u8 * 0xFF, 0, 0]);
+        blit(top_fb, 6, 0, [0, 0, pad.up() as u8 * 0xFF]);
+        blit(top_fb, 7, 0, [0, pad.down() as u8 * 0xFF, 0]);
+        blit(top_fb, 8, 0, [pad.r() as u8 * 0xFF, 0, 0]);
+        blit(top_fb, 9, 0, [0, 0, pad.l() as u8 * 0xFF]);
+        blit(top_fb, 10, 0, [0, pad.x() as u8 * 0xFF, 0]);
+        blit(top_fb, 11, 0, [pad.y() as u8 * 0xFF, 0, 0]);
+
+        let speed = 1;
+
+        if pad.right() {
+            text_x += speed;
+            text_x %= 400;
+        }
+
+        if pad.left() {
+            text_x += 400 - speed;
+            text_x %= 400;
+        }
+
+        if pad.down() {
+            text_y += speed;
+            text_y %= 240;
+        }
+
+        if pad.up() {
+            text_y += 240 - speed;
+            text_y %= 240;
+        }
+
+        // clear(top_fb, 40, 40, 10, 20, [0, 0, 0xFF]);
+        print_str(top_fb, text_x, text_y, "Rust");
     }
 }
 
@@ -170,5 +213,59 @@ fn busy_sleep(iterations: usize) {
         unsafe {
             read_volatile(&n);
         }
+    }
+}
+
+fn blit(buffer: &mut [[u8; 3]], x: usize, y: usize, color: [u8; 3]) {
+    let y = 239 - y;
+    let pos = 240 * x + y;
+
+    if pos >= buffer.len() {
+        return;
+    }
+
+    unsafe {
+        write_volatile(&mut buffer[pos], color);
+    }
+}
+
+fn clear(buffer: &mut [[u8; 3]], x: usize, y: usize, w: usize, h: usize, color: [u8; 3]) {
+    for x in x..x+w {
+        for y in y..y+h {
+            blit(buffer, x, y, color);
+        }
+    }
+}
+
+fn print_char(buffer: &mut [[u8; 3]], x: usize, y: usize, ch: char) {
+    use font8x8::{BASIC_FONTS, UnicodeFonts};
+
+    const BLACK: [u8; 3] = [0x00, 0x00, 0x00];
+
+    clear(buffer, x, y, 8, 8, BLACK);
+
+    let glyph = match BASIC_FONTS.get(ch) {
+        None => return,
+        Some(glyph) => glyph,
+    };
+
+    for (y_off, row) in glyph.iter().copied().enumerate() {
+        let y = y + y_off;
+
+        for x_off in 0..8u8 {
+            let x = x + x_off as usize;
+            let luminance = ((row >> x_off) & 1) * 0xFF;
+            let color = [luminance; 3];
+
+            blit(buffer, x, y, color);
+        }
+    }
+
+}
+
+fn print_str(buffer: &mut [[u8; 3]], x: usize, y: usize, text: &str) {
+    for (i, ch) in text.chars().enumerate() {
+        let offset = i * 8;
+        print_char(buffer, x + offset, y, ch);
     }
 }
