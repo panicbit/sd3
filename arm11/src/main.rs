@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#![feature(global_asm)]
+#![feature(global_asm, asm)]
 #![feature(const_generics)]
 #![feature(panic_info_message)]
 
@@ -14,12 +14,17 @@ use common::input::PadState;
 mod lcd;
 mod gpu;
 mod panic;
+mod mpcore;
 
 const SCREEN_TOP_WIDTH: usize = 400;
 const SCREEN_BOTTOM_WIDTH: usize = 320;
 const SCREEN_HEIGHT: usize = 240;
 const SCREEN_TOP_FBSIZE: usize = (3 * SCREEN_TOP_WIDTH * SCREEN_HEIGHT);
 const SCREEN_BOTTOM_FBSIZE: usize = (3 * SCREEN_BOTTOM_WIDTH * SCREEN_HEIGHT);
+
+extern {
+    fn _start() -> !;
+}
 
 global_asm!(r#"
 .section .text.start
@@ -28,6 +33,8 @@ global_asm!(r#"
 .arm
 
 _start:
+    cpsid aif
+
     ldr r0, =0x24000000
     mov sp, r0
 
@@ -40,6 +47,20 @@ const FERRIS: &[u8] = include_bytes!("../../ferris.data");
 #[no_mangle]
 pub extern "C" fn _rust_start() -> ! {
     unsafe {
+        mpcore::enable_scu();
+        mpcore::enable_smp_mode();
+        mpcore::disable_interrupts();
+        mpcore::clean_and_invalidate_data_cache();
+
+        if mpcore::cpu_id() == 0 {
+            write_volatile(0x1FFFFFDC as *mut u32, _start as u32);
+
+            let sw_int_reg = 0x17E01F00 as *mut u32;
+            write_volatile(sw_int_reg, 0b10 << 16 | 1);
+
+            loop {}
+        }
+
         common::start();
         busy_sleep(1000);
 
@@ -183,7 +204,13 @@ pub unsafe fn init_screens(top_fb: &mut [[u8; 3]]) {
         // clear(top_fb, 40, 40, 10, 20, [0, 0, 0xFF]);
         print_str(top_fb, text_x, text_y, "Rust");
 
-        panic!("end of program! :D");
+        panic!("\
+            end of program! :D\n\
+            cpu id: 0x{id:X}\n\
+            cpu status: 0b{status:06b}",
+            id = mpcore::cpu_id(),
+            status = mpcore::cpu_status(),
+        );
     }
 }
 
