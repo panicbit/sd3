@@ -1,8 +1,13 @@
-arm9_path = arm9/target/sd3_arm9/debug/sd3_arm9
-arm11_path = arm11/target/sd3_arm11/debug/sd3_arm11
+mode = debug
+arm9_path = arm9/target/sd3_arm9/$(mode)/sd3_arm9
+arm11_path = arm11/target/sd3_arm11/$(mode)/sd3_arm11
 device_label = 3DS
 firm_path = sd3.firm
 firmtool = rust
+
+ifeq ($(mode),release)
+  cargo_flags += --release
+endif
 
 firm: $(firmtool)
 
@@ -13,10 +18,10 @@ py: arm9 arm11
 	firmtool build $(firm_path) -D $(arm9_path) $(arm11_path) -C NDMA XDMA
 
 arm9:
-	cd arm9; cargo xbuild
+	cd arm9; cargo xbuild $(cargo_flags)
 
 arm11:
-	cd arm11; cargo xbuild
+	cd arm11; cargo xbuild $(cargo_flags)
 
 parse: firm
 	firmtool parse $(firm_path)
