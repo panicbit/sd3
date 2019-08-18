@@ -1,15 +1,19 @@
 #![no_std]
 #![no_main]
 #![feature(global_asm)]
+#![feature(const_generics)]
+#![feature(panic_info_message)]
 
 use volatile::Volatile;
 use lcd::*;
 use gpu::FramebufferConfig;
 use core::ptr::{read_volatile, write_volatile};
+use core::{str, fmt, cmp};
 use common::input::PadState;
 
 mod lcd;
 mod gpu;
+mod panic;
 
 const SCREEN_TOP_WIDTH: usize = 400;
 const SCREEN_BOTTOM_WIDTH: usize = 320;
@@ -52,11 +56,6 @@ pub extern "C" fn _rust_start() -> ! {
 //     asm!("mov sp, r0" :: "{r0}"(addr) : /* "sp" */);
 //     entry_point()
 // }
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {}
-}
 
 pub unsafe fn init_screens(top_fb: &mut [[u8; 3]]) {
     let brightness_level = 0xFEFE;
@@ -123,6 +122,8 @@ pub unsafe fn init_screens(top_fb: &mut [[u8; 3]]) {
     let mut do_render = true;
     let mut render_bg = false;
 
+    clear(top_fb, 0, 0, 400, 240, [0, 0, 0]);
+
     loop {
         let pad = PadState::read();
 
@@ -181,6 +182,8 @@ pub unsafe fn init_screens(top_fb: &mut [[u8; 3]]) {
 
         // clear(top_fb, 40, 40, 10, 20, [0, 0, 0xFF]);
         print_str(top_fb, text_x, text_y, "Rust");
+
+        panic!("end of program! :D");
     }
 }
 
@@ -225,7 +228,9 @@ fn blit(buffer: &mut [[u8; 3]], x: usize, y: usize, color: [u8; 3]) {
     }
 
     unsafe {
-        write_volatile(&mut buffer[pos], color);
+        write_volatile(&mut buffer[pos][0], color[2]);
+        write_volatile(&mut buffer[pos][1], color[1]);
+        write_volatile(&mut buffer[pos][2], color[0]);
     }
 }
 
@@ -267,5 +272,40 @@ fn print_str(buffer: &mut [[u8; 3]], x: usize, y: usize, text: &str) {
     for (i, ch) in text.chars().enumerate() {
         let offset = i * 8;
         print_char(buffer, x + offset, y, ch);
+    }
+}
+
+struct ArrayStr<const N: usize> {
+    buf: [u8; N],
+    len: usize,
+}
+
+impl<const N: usize> ArrayStr<{N}> {
+    fn new() -> Self {
+        ArrayStr {
+            buf: unsafe { core::mem::zeroed() },
+            len: 0,
+        }
+    }
+
+    fn as_str(&self) -> &str {
+        unsafe {
+            str::from_utf8_unchecked(&self.buf[..self.len])
+        }
+    }
+}
+
+impl<const N: usize> fmt::Write for ArrayStr<{N}> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        let free = N - self.len;
+        let amount = cmp::min(free, s.len());
+        let s = &s.as_bytes()[..amount];
+        let buf = &mut self.buf[self.len..][..amount];
+
+        buf.copy_from_slice(s);
+
+        self.len += amount;
+
+        Ok(())
     }
 }
