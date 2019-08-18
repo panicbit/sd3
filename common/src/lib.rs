@@ -2,8 +2,6 @@
 
 #[macro_use] extern crate bitflags;
 
-use core::ptr;
-
 mod mem;
 pub mod input;
 
@@ -16,11 +14,13 @@ pub unsafe fn start() {
 
 unsafe fn clear_bss() {
     extern {
-        static __bss_start: *mut u8;
-        static __bss_end: *mut u8;
+        static mut __bss_start: u8;
+        static mut __bss_end: u8;
     }
 
-    let len = __bss_end as usize - __bss_start as usize;
+    let bss_start = &mut __bss_start as *mut u8;
+    let bss_end = &mut __bss_end as *mut u8;
+    let len = bss_end as usize - bss_start as usize;
 
-    ptr::write_bytes(__bss_start, 0, len);
+    bss_start.write_bytes(0, len);
 }
