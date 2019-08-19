@@ -2,7 +2,7 @@
 
 #[macro_use] extern crate bitflags;
 
-mod mem;
+pub mod mem;
 pub mod input;
 
 #[cfg(all(feature="arm9", feature="arm11"))]
