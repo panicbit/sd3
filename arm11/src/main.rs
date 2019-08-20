@@ -200,17 +200,29 @@ pub unsafe fn init_screens(top_fb: &mut [[u8; 3]]) {
             text_y %= 240;
         }
 
+        if pad.y() {
+            for i in 0 ..= 255 {
+                let color = 0x000101 * i;
+
+                (*(0x10400484 as *mut Volatile<u32>)).write(color);
+            }
+        }
+
+        if pad.x() {
+            break;
+        }
+
         // clear(top_fb, 40, 40, 10, 20, [0, 0, 0xFF]);
         print_str(top_fb, text_x, text_y, "Rust");
-
-        panic!("\
-            end of program! :D\n\
-            cpu id: 0x{id:X}\n\
-            cpu status: 0b{status:06b}",
-            id = mpcore::cpu_id(),
-            status = mpcore::cpu_status(),
-        );
     }
+
+    panic!("\
+        end of program! :D\n\
+        cpu id: 0x{id:X}\n\
+        cpu status: 0b{status:06b}",
+        id = mpcore::cpu_id(),
+        status = mpcore::cpu_status(),
+    );
 }
 
 unsafe fn setup_framebuffers(addr: u32) {
