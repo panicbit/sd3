@@ -1,4 +1,6 @@
 
+pub mod interrupt_distributor;
+
 #[inline(always)]
 pub unsafe fn enable_scu() {
     asm!("

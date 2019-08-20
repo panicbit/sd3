@@ -4,6 +4,7 @@
 
 pub mod mem;
 pub mod input;
+pub mod util;
 
 #[cfg(all(feature="arm9", feature="arm11"))]
 compile_error!("arm9 and arm11 features are mutually exclusive");

@@ -10,3 +10,4 @@ edition = "2018"
 common = { path = "../common", features = ["arm11"] }
 volatile = { version = "0.2.6", features = ["const_fn"] }
 font8x8 = { version = "0.2.5", default_features = false, features = ["unicode"] }
+bitflags = "1.1.0"

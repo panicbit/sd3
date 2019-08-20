@@ -4,6 +4,8 @@
 #![feature(const_generics)]
 #![feature(panic_info_message)]
 
+#[macro_use] extern crate bitflags;
+
 use volatile::Volatile;
 use lcd::*;
 use gpu::FramebufferConfig;
@@ -15,6 +17,7 @@ mod lcd;
 mod gpu;
 mod panic;
 mod mpcore;
+mod boot11;
 
 const SCREEN_TOP_WIDTH: usize = 400;
 const SCREEN_BOTTOM_WIDTH: usize = 320;
@@ -53,11 +56,7 @@ pub extern "C" fn _rust_start() -> ! {
         mpcore::clean_and_invalidate_data_cache();
 
         if mpcore::cpu_id() == 0 {
-            write_volatile(0x1FFFFFDC as *mut u32, _start as u32);
-
-            let sw_int_reg = 0x17E01F00 as *mut u32;
-            write_volatile(sw_int_reg, 0b10 << 16 | 1);
-
+            boot11::start_cpu(1, _start);
             loop {}
         }
 
