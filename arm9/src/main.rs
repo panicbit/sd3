@@ -3,6 +3,8 @@
 
 #[macro_use] extern crate bitflags;
 
+use common::input::PadState;
+
 mod i2c;
 mod timer;
 
@@ -36,15 +38,23 @@ pub extern "C" fn _start() -> ! {
         // pattern[2] = 0x01;
         // pattern[3] = 0x00;
 
+        // Set notification light pattern
         i2c::write_reg_buf(i2c::DEVICE_MCU, 0x2d, &pattern);
 
         init_screens();
-        timer::sleep_msecs(4_000);
-
-        // shutdown
-        i2c::write_reg(i2c::DEVICE_MCU, 0x20, 1);
     }
 
+    loop {
+        let pad = PadState::read();
+
+        if pad.start() {
+            shutdown();
+        }
+    }
+}
+
+fn shutdown() {
+    i2c::write_reg(i2c::DEVICE_MCU, 0x20, 1);
     loop {}
 }
 
