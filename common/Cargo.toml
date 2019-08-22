@@ -10,3 +10,4 @@ arm11 = []
 
 [dependencies]
 bitflags = "1.1.0"
+font8x8 = { version = "0.2.5", default_features = false, features = ["unicode"] }
