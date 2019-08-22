@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#![feature(global_asm, asm)]
+#![feature(global_asm, asm, naked_functions)]
 #![feature(panic_info_message)]
 
 #[macro_use] extern crate bitflags;
@@ -14,22 +14,20 @@ use core::fmt::Write;
 use common::input::PadState;
 use common::util::reg::*;
 use common::Console;
+use common::mem::arm11::*;
 
 mod lcd;
 mod gpu;
 mod panic;
 mod mpcore;
 mod boot11;
+mod exceptions;
 
 const SCREEN_TOP_WIDTH: usize = 400;
 const SCREEN_BOTTOM_WIDTH: usize = 320;
 const SCREEN_HEIGHT: usize = 240;
 const SCREEN_TOP_FBSIZE: usize = (3 * SCREEN_TOP_WIDTH * SCREEN_HEIGHT);
 const SCREEN_BOTTOM_FBSIZE: usize = (3 * SCREEN_BOTTOM_WIDTH * SCREEN_HEIGHT);
-
-extern {
-    fn _start() -> !;
-}
 
 global_asm!(r#"
 .section .text.start
@@ -38,7 +36,7 @@ global_asm!(r#"
 .arm
 
 _start:
-    cpsid aif
+    cpsid aif, #0x13
 
     ldr r0, =0x24000000
     mov sp, r0
@@ -50,27 +48,69 @@ _start:
 const FERRIS: &[u8] = include_bytes!("../../ferris.data");
 
 #[no_mangle]
-pub extern "C" fn _rust_start() -> ! {
-    unsafe {
-        mpcore::enable_scu();
-        mpcore::enable_smp_mode();
-        mpcore::disable_interrupts();
-        mpcore::clean_and_invalidate_data_cache();
+pub unsafe extern "C" fn _rust_start() -> ! {
+    exceptions::install_handlers();
+    // mpcore::enable_scu();
+    // mpcore::enable_smp_mode();
+    // mpcore::disable_interrupts();
+    // mpcore::clean_and_invalidate_data_cache();
 
-        if mpcore::cpu_id() == 0 {
-            boot11::start_cpu(1, _start);
-            loop {}
+    // if mpcore::cpu_id() == 0 {
+    //     boot11::start_cpu(1, _start);
+    //     loop {}
+    // }
+
+    common::start();
+
+    busy_sleep(1000);
+
+    let fb_top = core::slice::from_raw_parts_mut::<[u8; 3]>(0x18000000 as *mut _, SCREEN_TOP_FBSIZE / 3);
+
+    init_screens(fb_top);
+
+
+    let ref mut console = Console::new(fb_top, 400, 240);
+    console.clear([0; 3]);
+
+    loop {
+        let pad = PadState::read();
+
+        console.go_to(0, 0);
+
+        let base = AXI_WRAM.end - 0x60;
+        let addr = base + 0x10;
+        writeln!(console, "[0x{:08x}] = 0x{:08x}", addr, RO::<u32>::new(addr).read()).ok();
+        let addr = base + 0x14;
+        writeln!(console, "[0x{:08x}] = 0x{:08x}", addr, RO::<u32>::new(addr).read()).ok();
+        writeln!(console, "cpsr = 0b{:032b}", mpcore::cpu_status_reg()).ok();
+
+        static mut N: u32 = 0;
+        writeln!(console, "frame {}", N).ok();
+        N += 1;
+
+        // trigger svc
+        if pad.l() && pad.a() {
+            asm!("svc 42");
         }
 
-        common::start();
-        busy_sleep(1000);
+        // trigger data abort
+        if pad.l() && pad.b() {
+            RW::<usize>::new(0).write(42);
+        }
 
-        let fb_top = core::slice::from_raw_parts_mut::<[u8; 3]>(0x18000000 as *mut _, SCREEN_TOP_FBSIZE / 3);
+        // trigger prefetch abort
+        if pad.l() && pad.y() {
+            asm!("bkpt");
+        }
 
-        init_screens(fb_top);
+        // trigger undefined instruction
+        if pad.l() && pad.x() {
+            asm!("
+                .word 0xFFFFFFFF
+                bx lr
+            ");
+        }
     }
-
-    loop {}
 }
 
 // #[no_mangle]
@@ -132,40 +172,12 @@ pub unsafe fn init_screens(top_fb: &mut [[u8; 3]]) {
     (*(0x10400490 as *mut Volatile<u32>)).write(0x000002D0);
     (*(0x1040049C as *mut Volatile<u32>)).write(0x00000000);
 
-        //Disco register
+    // Set up color LUT
     for i in 0 ..= 255 {
         (*(0x10400484 as *mut Volatile<u32>)).write(0x10101 * i);
     }
 
     setup_framebuffers(top_fb.as_ptr() as _);
-
-    let ref mut console = Console::new(top_fb, 400, 240);
-    console.clear([0; 3]);
-
-    'render: loop {
-        let pad = PadState::read();
-
-        if pad.x() {
-            break;
-        }
-
-        console.go_to(0, 0);
-        writeln!(console, "GPIO_DATA0 = 0b{:016b}", RO::<u16>::new(0x10147000).read());
-        writeln!(console, "GPIO_DATA1 = 0b{:032b}", RO::<u32>::new(0x10147010).read());
-        writeln!(console, "GPIO_DATA2 = 0b{:016b}", RO::<u16>::new(0x10147014).read());
-        writeln!(console, "GPIO_DATA3 = 0b{:016b}", RO::<u16>::new(0x10147020).read());
-        writeln!(console, "GPIO_?? = 0b{:016b}", RO::<u16>::new(0x10147024).read());
-        writeln!(console, "GPIO_? = 0b{:016b}", RO::<u16>::new(0x10147026).read());
-        writeln!(console, "GPIO_DATA4 = 0b{:016b}", RO::<u16>::new(0x10147028).read());
-    }
-
-    panic!("\
-        end of program! :D\n\
-        cpu id: 0x{id:X}\n\
-        cpu status: 0b{status:06b}",
-        id = mpcore::cpu_id(),
-        status = mpcore::cpu_status(),
-    );
 }
 
 unsafe fn setup_framebuffers(addr: u32) {
