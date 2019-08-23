@@ -13,8 +13,8 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     console.set_fg([255, 0, 0]);
     console.set_bg([0; 3]);
 
-    writeln!(console, "arm11:");
-    writeln!(console, "{}", info);
+    writeln!(console, "arm11:").ok();
+    writeln!(console, "{}", info).ok();
 
     loop {}
 }
