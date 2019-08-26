@@ -115,10 +115,7 @@ pub unsafe extern "C" fn _rust_start() -> ! {
 
         // trigger undefined instruction
         if pad.l() && pad.x() {
-            asm!("
-                .word 0xFFFFFFFF
-                bx lr
-            ");
+            asm!(".word 0xFFFFFFFF");
         }
 
         pad.poll();
