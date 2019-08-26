@@ -113,12 +113,6 @@ pub unsafe extern "C" fn _rust_start() -> ! {
     }
 }
 
-// #[no_mangle]
-// pub unsafe fn go(addr: u32, entry_point: fn()) {
-//     asm!("mov sp, r0" :: "{r0}"(addr) : /* "sp" */);
-//     entry_point()
-// }
-
 pub unsafe fn init_screens(top_fb: &mut [[u8; 3]]) {
     let brightness_level = 0xFEFE;
 
@@ -136,45 +130,47 @@ pub unsafe fn init_screens(top_fb: &mut [[u8; 3]]) {
     (*(0x10202A44 as *mut Volatile<u32>)).write(0x1023E);
 
     //Top screen
-    (*(0x10400400 as *mut Volatile<u32>)).write(0x000001c2);
-    (*(0x10400404 as *mut Volatile<u32>)).write(0x000000d1);
-    (*(0x10400408 as *mut Volatile<u32>)).write(0x000001c1);
-    (*(0x1040040c as *mut Volatile<u32>)).write(0x000001c1);
-    (*(0x10400410 as *mut Volatile<u32>)).write(0x00000000);
-    (*(0x10400414 as *mut Volatile<u32>)).write(0x000000cf);
-    (*(0x10400418 as *mut Volatile<u32>)).write(0x000000d1);
-    (*(0x1040041c as *mut Volatile<u32>)).write(0x01c501c1);
-    (*(0x10400420 as *mut Volatile<u32>)).write(0x00010000);
-    (*(0x10400424 as *mut Volatile<u32>)).write(0x0000019d);
-    (*(0x10400428 as *mut Volatile<u32>)).write(0x00000002);
-    (*(0x1040042c as *mut Volatile<u32>)).write(0x00000192);
-    (*(0x10400430 as *mut Volatile<u32>)).write(0x00000192);
-    (*(0x10400434 as *mut Volatile<u32>)).write(0x00000192);
-    (*(0x10400438 as *mut Volatile<u32>)).write(0x00000001);
-    (*(0x1040043c as *mut Volatile<u32>)).write(0x00000002);
-    (*(0x10400440 as *mut Volatile<u32>)).write(0x01960192);
-    (*(0x10400444 as *mut Volatile<u32>)).write(0x00000000);
-    (*(0x10400448 as *mut Volatile<u32>)).write(0x00000000);
-    (*(0x1040045C as *mut Volatile<u32>)).write(0x00f00190);
-    (*(0x10400460 as *mut Volatile<u32>)).write(0x01c100d1);
-    (*(0x10400464 as *mut Volatile<u32>)).write(0x01920002);
+    let mut top_fb_conf = gpu::FramebufferConfig::top();
+    top_fb_conf.set_pixel_clock(0x1c2);
+    top_fb_conf.set_hblank_timer(0xd1);
+    top_fb_conf.reg(0x08).write(0x1c1);
+    top_fb_conf.reg(0x0c).write(0x1c1);
+    top_fb_conf.set_window_x_start(0);
+    top_fb_conf.set_window_x_end(0xcf);
+    top_fb_conf.set_window_y_start(0xd1);
+    top_fb_conf.reg(0x1c).write(0x01c501c1);
+    top_fb_conf.set_window_y_end(0x10000);
+    top_fb_conf.set_vblank_timer(0x19d);
+    top_fb_conf.reg(0x28).write(0x2);
+    top_fb_conf.reg(0x2c).write(0x192);
+    top_fb_conf.set_vtotal(0x192);
+    top_fb_conf.set_vdisp(0x192);
+    top_fb_conf.set_vertical_data_offset(0x1);
+    top_fb_conf.reg(0x3c).write(0x2);
+    top_fb_conf.reg(0x40).write(0x01960192);
+    top_fb_conf.reg(0x44).write(0);
+    top_fb_conf.reg(0x48).write(0);
+    top_fb_conf.reg(0x5C).write(0x00f00190);
+    top_fb_conf.reg(0x60).write(0x01c100d1);
+    top_fb_conf.reg(0x64).write(0x01920002);
 
-    (*(0x10400468 as *mut Volatile<u32>)).write(top_fb.as_ptr() as _);
-    (*(0x1040046C as *mut Volatile<u32>)).write(top_fb.as_ptr() as _);
+    top_fb_conf.set_buffer0(top_fb.as_ptr() as _);
+    top_fb_conf.set_buffer1(top_fb.as_ptr() as _);
 
-    (*(0x10400470 as *mut Volatile<u32>)).write(0x80341);
-    (*(0x10400474 as *mut Volatile<u32>)).write(0x00010501);
-    (*(0x10400478 as *mut Volatile<u32>)).write(0);
+    top_fb_conf.set_buffer_format(0x80341);
+    top_fb_conf.reg(0x74).write(0x10501);
+    top_fb_conf.set_shown_buffer(0);
 
-    (*(0x10400494 as *mut Volatile<u32>)).write(top_fb.as_ptr() as _);
-    (*(0x10400498 as *mut Volatile<u32>)).write(top_fb.as_ptr() as _);
+    top_fb_conf.set_alt_buffer0(top_fb.as_ptr() as _);
+    top_fb_conf.set_alt_buffer1(top_fb.as_ptr() as _);
 
-    (*(0x10400490 as *mut Volatile<u32>)).write(0x000002D0);
-    (*(0x1040049C as *mut Volatile<u32>)).write(0x00000000);
+    top_fb_conf.set_buffer_stride(0x2D0);
+    top_fb_conf.reg(0x9C).write(0);
 
     // Set up color LUT
+    top_fb_conf.set_color_lut_index(0);
     for i in 0 ..= 255 {
-        (*(0x10400484 as *mut Volatile<u32>)).write(0x10101 * i);
+        top_fb_conf.set_color_lut_color(0x10101 * i);
     }
 
     setup_framebuffers(top_fb.as_ptr() as _);
@@ -184,17 +180,18 @@ unsafe fn setup_framebuffers(addr: u32) {
     (*(0x10202204 as *mut Volatile<u32>)).write(0x01000000); //set LCD fill black to hide potential garbage -- NFIRM does it before firmlaunching
     (*(0x10202A04 as *mut Volatile<u32>)).write(0x01000000);
 
-    (*(0x10400468 as *mut Volatile<u32>)).write(addr);
-    (*(0x1040046c as *mut Volatile<u32>)).write(addr);
-    (*(0x10400494 as *mut Volatile<u32>)).write(addr);
-    (*(0x10400498 as *mut Volatile<u32>)).write(addr);
+    let mut top_fb_conf = gpu::FramebufferConfig::top();
+    top_fb_conf.reg(0x68).write(addr);
+    top_fb_conf.reg(0x6c).write(addr);
+    top_fb_conf.reg(0x94).write(addr);
+    top_fb_conf.reg(0x98).write(addr);
     // (*(0x10400568 as *mut Volatile<u32>)).write((u32)fbs[0].bottom);
     // (*(0x1040056c as *mut Volatile<u32>)).write((u32)fbs[1].bottom);
 
     //Set framebuffer format, framebuffer select and stride
-    (*(0x10400470 as *mut Volatile<u32>)).write(0x80341);
-    (*(0x10400478 as *mut Volatile<u32>)).write(0);
-    (*(0x10400490 as *mut Volatile<u32>)).write(0x2D0);
+    top_fb_conf.reg(0x70).write(0x80341);
+    top_fb_conf.reg(0x78).write(0);
+    top_fb_conf.reg(0x90).write(0x2D0);
     (*(0x10400570 as *mut Volatile<u32>)).write(0x80301);
     (*(0x10400578 as *mut Volatile<u32>)).write(0);
     (*(0x10400590 as *mut Volatile<u32>)).write(0x2D0);
