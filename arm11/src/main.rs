@@ -11,7 +11,7 @@ use gpu::FramebufferConfig;
 use core::ptr::{read_volatile, write_volatile};
 use core::{str, fmt, cmp};
 use core::fmt::Write;
-use common::input::PadState;
+use common::input::GamePad;
 use common::util::reg::*;
 use common::Console;
 use common::mem::arm11::*;
@@ -72,9 +72,9 @@ pub unsafe extern "C" fn _rust_start() -> ! {
     let ref mut console = Console::new(fb_top, 400, 240);
     console.clear([0; 3]);
 
-    loop {
-        let pad = PadState::read();
+    let mut pad = GamePad::new();
 
+    loop {
         console.go_to(0, 0);
 
         let base = AXI_WRAM.end - 0x60;
@@ -86,7 +86,17 @@ pub unsafe extern "C" fn _rust_start() -> ! {
 
         static mut N: u32 = 0;
         writeln!(console, "frame {}", N).ok();
-        N += 1;
+        N = N.wrapping_add(1);
+
+        static mut COUNTER: u32 = 0;
+        let amount = if pad.l() { 10 } else { 1 };
+        writeln!(console, "counter = {}                     ", COUNTER).ok();
+        if pad.up_once() {
+            COUNTER = COUNTER.wrapping_add(amount);
+        }
+        if pad.down_once() {
+            COUNTER = COUNTER.wrapping_sub(amount);
+        }
 
         // trigger svc
         if pad.l() && pad.a() {
@@ -110,6 +120,8 @@ pub unsafe extern "C" fn _rust_start() -> ! {
                 bx lr
             ");
         }
+
+        pad.poll();
     }
 }
 
