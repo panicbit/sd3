@@ -1,5 +1,6 @@
 use core::ptr::{read_volatile, write_volatile};
 use core::fmt;
+use core::mem;
 
 pub struct Console<'a> {
     buf: &'a mut [[u8; 3]],
@@ -25,6 +26,10 @@ impl<'a> Console<'a> {
             bg_color: [0; 3],
             fg_color: [255; 3],
         }
+    }
+
+    pub fn swap_colors(&mut self) {
+        mem::swap(&mut self.fg_color, &mut self.bg_color);
     }
 
     pub fn go_to(&mut self, x: usize, y: usize) {

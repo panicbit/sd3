@@ -9,12 +9,13 @@ use volatile::Volatile;
 use lcd::*;
 use gpu::FramebufferConfig;
 use core::ptr::{read_volatile, write_volatile};
-use core::{str, fmt, cmp};
-use core::fmt::Write;
+use core::{str, fmt, cmp, mem};
+use core::fmt::{Write, UpperHex, Binary};
 use common::input::GamePad;
 use common::util::reg::*;
 use common::Console;
 use common::mem::arm11::*;
+use num_traits::PrimInt;
 
 mod lcd;
 mod gpu;
@@ -77,31 +78,50 @@ pub unsafe extern "C" fn _rust_start() -> ! {
     }
 
     let ref mut console = Console::new(fb_top, 400, 240);
+    // console.clear([0; 3]);/*  */
 
     let mut pad = GamePad::new();
+    let mut bg_color = U32HexEditor::new(0);
+    let mut fg_color = U32HexEditor::new(0xFFFFFF00);
+    let mut fg_selected = false;
 
     loop {
         console.go_to(0, 0);
 
         let base = AXI_WRAM.end - 0x60;
-        let addr = base + 0x10;
-        writeln!(console, "[0x{:08x}] = 0x{:08x}", addr, RO::<u32>::new(addr).read()).ok();
-        let addr = base + 0x14;
-        writeln!(console, "[0x{:08x}] = 0x{:08x}", addr, RO::<u32>::new(addr).read()).ok();
+        print_addr::<u32>(console, base + 0x10, "svc vector instr");
+        print_addr::<u32>(console, base + 0x10, "svc vector addr");
+        print_addr_bin::<u16>(console, 0x10146000, "pad");
+
         writeln!(console, "cpsr = 0b{:032b}", mpcore::cpu_status_reg()).ok();
 
         static mut N: u32 = 0;
         writeln!(console, "frame {}", N).ok();
         N = N.wrapping_add(1);
 
-        static mut COUNTER: u32 = 0;
-        let amount = if pad.l() { 10 } else { 1 };
-        writeln!(console, "counter = {}                     ", COUNTER).ok();
-        if pad.up_once() {
-            COUNTER = COUNTER.wrapping_add(amount);
+        if !pad.l() && pad.y_once() {
+            fg_selected = !fg_selected;
         }
-        if pad.down_once() {
-            COUNTER = COUNTER.wrapping_sub(amount);
+
+        console.set_bg(u32_to_rgb(bg_color.value()));
+        console.set_fg(u32_to_rgb(fg_color.value()));
+
+        {
+            if !fg_selected {
+                bg_color.manipulate(&pad);
+            }
+            write!(console, "bg_color = ").ok();
+            bg_color.render_with_cursor(console, !fg_selected);
+            writeln!(console, "").ok();
+        }
+
+        {
+            if fg_selected {
+                fg_color.manipulate(&pad);
+            }
+            write!(console, "fg_color = ").ok();
+            fg_color.render_with_cursor(console, fg_selected);
+            writeln!(console, "").ok();
         }
 
         // trigger svc
@@ -125,6 +145,108 @@ pub unsafe extern "C" fn _rust_start() -> ! {
         }
 
         pad.poll();
+    }
+}
+
+struct U32HexEditor {
+    cursor_pos: usize,
+    value: u32,
+}
+
+impl U32HexEditor {
+    const fn new(value: u32) -> Self {
+        Self {
+            cursor_pos: 0,
+            value,
+        }
+    }
+    fn cursor_left(&mut self) {
+        self.cursor_pos += 1;
+        self.cursor_pos %= 8;
+    }
+
+    fn cursor_right(&mut self) {
+        self.cursor_pos += 8 - 1;
+        self.cursor_pos %= 8;
+    }
+
+    fn increment(&mut self) {
+        self.modify(|digit| {
+            *digit += 1;
+            *digit %= 16;
+        })
+    }
+
+    fn decrement(&mut self) {
+        self.modify(|digit| {
+            *digit += 16 - 1;
+            *digit %= 16;
+        })
+    }
+
+    fn modify(&mut self, f: impl FnOnce(&mut u32)) {
+        let pos = self.cursor_pos * 4;
+
+        // Extract digit
+        let mut digit = (self.value >> pos) & 0xF;
+
+        f(&mut digit);
+        digit &= 0xF;
+
+        // Clear digit
+        self.value &= !(0xF << pos);
+
+        // Insert digit
+        self.value |= digit << pos;
+    }
+
+    fn render(&self, console: &mut Console) {
+        self.render_with_cursor(console, true);
+    }
+
+    fn render_with_cursor(&self, console: &mut Console, with_cursor: bool) {
+        write!(console, "0x").ok();
+
+        for cursor_pos in (0..8).rev() {
+            let pos = cursor_pos * 4;
+            let digit = (self.value >> pos) & 0xF;
+
+            if with_cursor && cursor_pos == self.cursor_pos {
+                console.swap_colors();
+            }
+
+            write!(console, "{:X}", digit).ok();
+
+            if with_cursor && cursor_pos == self.cursor_pos {
+                console.swap_colors();
+            }
+        }
+    }
+
+    fn manipulate(&mut self, pad: &GamePad) {
+        if pad.left_once() {
+            self.cursor_left();
+        }
+
+        if pad.right_once() {
+            self.cursor_right();
+        }
+
+        if pad.up_once() {
+            self.increment();
+        }
+
+        if pad.down_once() {
+            self.decrement();
+        }
+    }
+
+    fn set_value(&mut self, value: u32) {
+        self.value = value;
+    }
+
+    fn value(&self) -> u32 {
+        self.value
     }
 }
 
@@ -215,6 +337,24 @@ unsafe fn setup_framebuffers(addr: u32) {
     (*(0x10202A04 as *mut Volatile<u32>)).write(0x00000000);
 }
 
+unsafe fn print_addr<T: PrimInt + UpperHex>(console: &mut Console, addr: usize, label: &'static str) {
+    writeln!(console, "[0x{addr:08X}] = 0x{value:0width$X} {label}",
+        addr = addr,
+        value = RO::<T>::new(addr).read(),
+        width = 2 * mem::size_of::<T>(),
+        label = label,
+    ).ok();
+}
+
+unsafe fn print_addr_bin<T: PrimInt + Binary>(console: &mut Console, addr: usize, label: &'static str) {
+    writeln!(console, "[0x{addr:08X}] = 0b{value:0width$b} {label}",
+        addr = addr,
+        value = RO::<T>::new(addr).read(),
+        width = 8 * mem::size_of::<T>(),
+        label = label,
+    ).ok();
+}
+
 fn busy_sleep(iterations: usize) {
     let n = 42;
     for _ in 0 .. 15 * iterations {
@@ -222,4 +362,9 @@ fn busy_sleep(iterations: usize) {
             read_volatile(&n);
         }
     }
+}
+
+fn u32_to_rgb(n: u32) -> [u8; 3] {
+    let c = n.to_be_bytes();
+    [c[0], c[1], c[2]]
 }

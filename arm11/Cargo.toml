@@ -10,3 +10,4 @@ edition = "2018"
 common = { path = "../common", features = ["arm11"] }
 volatile = { version = "0.2.6", features = ["const_fn"] }
 bitflags = "1.1.0"
+num-traits = { version = "0.2.8", default-features = false }
