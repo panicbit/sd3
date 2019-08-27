@@ -68,9 +68,15 @@ pub unsafe extern "C" fn _rust_start() -> ! {
 
     init_screens(fb_top);
 
+    {
+        for (pixel, ferris_pixel) in fb_top.iter_mut().zip(FERRIS.chunks(3)) {
+            write_volatile(&mut pixel[0], ferris_pixel[2]);
+            write_volatile(&mut pixel[1], ferris_pixel[1]);
+            write_volatile(&mut pixel[2], ferris_pixel[0]);
+        }
+    }
 
     let ref mut console = Console::new(fb_top, 400, 240);
-    console.clear([0; 3]);
 
     let mut pad = GamePad::new();
 
