@@ -78,7 +78,6 @@ pub unsafe extern "C" fn _rust_start() -> ! {
     }
 
     let ref mut console = Console::new(fb_top, 400, 240);
-    // console.clear([0; 3]);/*  */
 
     let mut pad = GamePad::new();
     let mut bg_color = U32HexEditor::new(0);
